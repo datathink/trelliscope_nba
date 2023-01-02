@@ -1,0 +1,314 @@
+---
+title: "Trelliscope Project"
+format: html
+message: false
+warning: false
+code-fold: show
+callout-icon: false
+toc: true
+self-contained: true
+---
+
+
+```{r}
+#| echo: FALSE
+
+library(trelliscopejs)
+library(tidyverse)
+library(arrow)
+
+nba_dat <- read_parquet("C:\\Users\\Bethany\\OneDrive - BYU-Idaho\\Documents\\DataThink\\trelliscope_nba\\nba_game_logs.gz.parquet")
+
+path <- tempfile("nba1")
+dir.create(path)
+```
+
+
+### 1 Old Trelliscope
+
+Follow the tutorial for the old version of trelliscope at this [link](https://cran.r-project.org/web/packages/trelliscopejs/vignettes/trelliscopejs.html#:~:text=Trelliscope%20is%20a%20visualization%20approach,plots%20arranged%20in%20a%20grid)
+
+:::{.callout-note collapse="true"}
+# Old Version Tutorial
+
+```{r}
+#| message: FALSE
+
+library(trelliscopejs)
+library(ggplot2)
+library(gapminder)
+
+str(gapminder)
+```
+
+```{r}
+#| fig.width: 11.8 
+#| fig.height: 10
+
+qplot(year, lifeExp, data = subset(gapminder, continent == "Europe")) +
+  facet_wrap(~ country + continent) +
+  theme_bw()
+```
+
+```{r}
+#| fig-width: 11.8 
+#| fig.height: 10
+
+qplot(year, lifeExp, data = gapminder) +
+  xlim(1948, 2011) + ylim(10, 95) + theme_bw() +
+  facet_wrap(~ country + continent)
+```
+
+```{r}
+qplot(year, lifeExp, data = gapminder) +
+  xlim(1948, 2011) + ylim(10, 95) + theme_bw() +
+  facet_trelliscope(~ country + continent, nrow = 2, ncol = 7, width = 300, path = "nba1", self_contained = TRUE)
+```
+
+```{r}
+#| message: false
+
+library(dplyr)
+library(tidyr)
+library(purrr)
+library(gapminder)
+
+by_country <- nest(gapminder, data = !one_of(c("country", "continent")))
+by_country
+
+```
+
+
+```{r}
+country_model <- function(df)
+  lm(lifeExp ~ year, data = df)
+
+by_country <- by_country %>%
+  mutate(model = map(data, country_model))
+
+by_country
+```
+
+```{r}
+#| warning: FALSE
+
+library(plotly)
+library(trelliscopejs)
+
+country_plot <- function(data, model) {
+  plot_ly(data = data, x = ~year, y = ~lifeExp,
+    type = "scatter", mode = "markers", name = "data") %>%
+    add_trace(data = data, x = ~year, y = ~predict(model),
+      mode = "lines", name = "lm") %>%
+    layout(
+      xaxis = list(range = c(1948, 2011)),
+      yaxis = list(range = c(10, 95)),
+      showlegend = FALSE)
+}
+
+by_country <- by_country %>%
+  mutate(data_plot = map2_plot(data, model, country_plot))
+
+by_country
+```
+
+```{r}
+by_country %>%
+  trelliscope(name = "life_expectancy", nrow = 2, ncol = 4, path = "nba1", self_contained = TRUE)
+```
+
+```{r}
+#| warning: FALSE
+
+by_country <- by_country %>%
+  mutate(resid_mad = cog(
+    map_dbl(model, ~ mad(resid(.x))),
+    desc = "median absolute deviation of residuals"))
+```
+
+```{r}
+#| eval: false
+
+by_country %>%
+  arrange(-resid_mad) %>%
+  trelliscope(name = "by_country_lm", nrow = 2, ncol = 4, path = "nba1", self_contained = TRUE)
+```
+
+```{r}
+#| eval: false
+
+by_country %>%
+  filter(continent == "Africa") %>%
+  trelliscope(name = "by_country_africa_lm", nrow = 2, ncol = 4, path = "nba1", self_contained = TRUE)
+```
+
+```{r}
+#| eval: false
+
+library(housingData)
+housing$state <- as.character(housing$state)
+housing$county <- as.character(housing$county)
+
+slope_fn <- function(x, y)
+  coef(lm(y ~ x))[2]
+
+d <- nest(housing, data = !one_of(c("county", "state")))
+
+d <- d %>%
+  mutate(
+    cogs = map(data, function(x, state, county) {
+      tibble(
+        slope = slope_fn(x$time, x$medListPriceSqft),
+        mean_list = mean(x$medListPriceSqft, na.rm = TRUE),
+        mean_sold = mean(x$medSoldPriceSqft, na.rm = TRUE),
+        n_obs = length(which(!is.na(x$medListPriceSqft)))
+      )
+    }),
+    zillow_link = sprintf("http://www.zillow.com/homes/%s_rb/",
+      gsub(" ", "-", paste(county, state)))
+  ) %>%
+  unnest(cogs) %>%
+  filter(n_obs > 1)
+
+d <- d %>%
+  mutate(
+    panel = map_plot(data, function(x) {
+      plot_ly(data = x, x = ~time, y = ~medListPriceSqft,
+        type = "scatter", mode = "markers") %>%
+        layout(
+          xaxis = list(title = "time"),
+          yaxis = list(title = "median list price / sq ft"))
+    })
+  )
+
+d %>%
+  trelliscope(name = "list_vs_time",
+    desc = "monthly median list price vs. time for 2984 US counties from 2008–2016",
+    nrow = 2, ncol = 4, path = "nba1", self_contained = TRUE)
+```
+
+:::
+
+
+### 2 New Trelliscope
+
+Then install the new version of trelliscope from [this repo](https://github.com/trelliscope/trelliscope) and follow it's readme tutorial. Note that the graphical interface at the end won't render but the code should al work up to that point. Make sure you're not getting any errors and make sure your final table has all the necessary plots and what not.
+
+:::{.callout-note collapse="true"}
+# New Version Tutorial 
+
+:::
+
+
+### 3 Vignettes
+
+Clone [this repo](https://github.com/hafen/trelliscope-vignettes) to your local machine. You will open vignettes in this repo one by one and follow their tutorials with the intent to suggest improvements in two ways; generallly, how could the writing be improved and specifically what changes need to be made to update the code and writing to align with new trelliscope? You will do this with the following trelliscopes in this order: Host a Trelliscope on Github, password_protecting, related displays, preserving_state_local.
+
+
+:::{.callout-note collapse="true"}
+# Vignettes Improvement
+
+:::
+
+
+### 4 Vignettes Comments
+
+Add comments and suggestions for edits to the issues thread [here](https://github.com/hafen/trelliscope-vignettes/issues/2) (note that this is an issue in the trelliscope-vignettes repo)
+
+
+:::{.callout-note collapse="true"}
+# Comments about Vignettes on GitHub Issue
+
+:::
+
+### 5 Package Comments
+
+Additionally, add comments on how the new trelliscope package could be improved from a user standpoint [here](https://github.com/hafen/trelliscope-vignettes/issues/1)
+
+
+:::{.callout-note collapse="true"}
+# Comments about Trelliscope Package Improvements
+
+
+- biggest confusion is about the path, temporary file path, and getting the plots to render in the output
+
+
+:::
+
+
+### 6 NBA Trelliscope
+
+Build a trelliscope with data from [this repo](https://github.com/datathink/trelliscope_nba). Make it pretty. Try implementing some of the skills you've learned from the tutorials. Specifially, host the final trelliscope on github, password protect it, and use cognostoc groups. This trelliscope needs to be functional so build it using the old trelliscope package.
+
+:::{.callout-note collapse="true"}
+# NBA
+
+
+:::{.panel-tabset}
+
+# One
+
+```{r}
+nba_dat1 <- nba_dat|>
+  dplyr::filter(year_season <= 1990) |>
+  dplyr::group_by(year_season, name_team, location_game) |>
+  dplyr::summarise(point_sd = sd(pts))
+
+# plot1 <- ggplot2::qplot(year_season, point_sd, data = nba_dat1)+ 
+#   facet_trelliscope(~ name_team + location_game, 
+#                     name = "NBA Stats1", 
+#                     path = "trelliscopes", 
+#                     nrow = 2, ncol = 4)
+# 
+# plot1
+
+
+sd_points_graph <- nba_dat|>
+  dplyr::filter(year_season <= 1990) |>
+  dplyr::group_by(year_season, name_team, location_game) |>
+  dplyr::summarise(point_sd = sd(pts)) |>
+  ggplot2::ggplot()+
+  ggplot2::geom_point(ggplot2::aes(year_season, point_sd))
+
+
+sd1 <- sd_points_graph + 
+  facet_trelliscope(~ name_team + location_game,
+                    nrow = 2, ncol = 4,
+                    name = "NBA Stats", path = "nba1")
+
+sd1 |>
+  tr_charm(password = "my_password")
+
+
+```
+
+
+# Two 
+
+```{r}
+#  eval: TRUE
+
+nba_dat2 <- nba_dat |>
+  dplyr::filter(year_season <= 1990) |>
+  dplyr::group_by(year_season, name_team, location_game) |>
+  dplyr::summarise(point_mean = mean(pts))
+
+plot2 <- ggplot2::qplot(year_season, point_mean, data = nba_dat2)+
+  trelliscopejs::facet_trelliscope(~ name_team + location_game, 
+                                   name = "NBA Stats2", path = "nba1",
+                                   nrow = 2, ncol = 4)
+
+plot2
+```
+:::
+
+
+
+
+
+:::
+
+
+<br>
+
+
