@@ -1,0 +1,32 @@
+---
+title: "Untitled"
+author: "Brigham Eaquinto"
+date: "2023-01-17"
+output: 
+  html_document:
+    self-contained: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Option 1 
+
+<iframe src="product1\index.html" width=100% height=400></iframe>
+
+----
+
+## Option 2
+
+<iframe src="product2/index.html" width=100% height=400>
+
+</iframe>
+
+----
+
+## Option 3
+
+<iframe 
+  src="\...product3\index.html" width=100% height=400>
+</iframe>
